@@ -23,6 +23,6 @@ test('production cron requires SMTP delivery configuration', () => {
   assert.doesNotThrow(() => validateEnvironment({
     NODE_ENV: 'production', DATABASE_URL: 'postgres://db', FRONTEND_URL: 'https://app.example.com',
     JWT_SECRET: 'a'.repeat(32), RUN_CRON: 'true', SMTP_HOST: 'smtp.example.com',
-    SMTP_USER: 'mailer', SMTP_PASS: 'secret', SMTP_FROM: 'alerts@example.com'
+    SMTP_USER: 'mailer', SMTP_PASS: 'secret', SMTP_FROM: 'alerts@example.com', DIRECT_URL: 'postgres://db'
   }));
 });
