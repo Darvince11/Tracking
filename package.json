@@ -8,6 +8,7 @@
     "dev": "nodemon src/app.js",
     "test": "node --test test",
     "check": "node --check src/app.js && prisma validate",
+    "hostinger:build": "prisma generate && prisma migrate deploy",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
