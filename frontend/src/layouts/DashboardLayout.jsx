@@ -67,7 +67,7 @@ const DashboardLayout = ({ allowedRoles }) => {
         }`}
         style={{ width: '260px', display: 'flex', flexDirection: 'column' }}
       >
-        <div className="sidebar-header relative" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', minHeight: '120px' }}>
+        <div className="sidebar-header relative">
           
           {/* Mobile Close Button (Inside Sidebar Drawer) */}
           <button 
@@ -77,19 +77,10 @@ const DashboardLayout = ({ allowedRoles }) => {
             <X size={24} />
           </button>
 
-          {/* Large Logo inside the Drawer/Sidebar */}
-          <img 
-            src={logo} 
-            alt="Nexoratel Logo" 
-            style={{ 
-              width: '230px', 
-              height: '230px', 
-              maxHeight: '250px', 
-              objectFit: 'contain', 
-              mixBlendMode: theme === 'dark' ? 'screen' : 'multiply', 
-              pointerEvents: 'none' 
-            }} 
-          />
+          <Link to={isAdmin ? '/admin' : '/employee'} className="brand-lockup" onClick={closeMobileMenu}>
+            <img src={logo} alt="Nexoratel" />
+            <span><strong>Nexoratel</strong><small>Operations workspace</small></span>
+          </Link>
         </div>
         
         <nav className="nav-menu flex-1 overflow-y-auto">
@@ -129,44 +120,27 @@ const DashboardLayout = ({ allowedRoles }) => {
         <header className="top-nav flex items-center justify-between px-4 py-3 md:px-6 border-b border-gray-200 dark:border-gray-800">
           
           {/* LEFT HEADER AREA: Mobile Logo */}
-          <div className="flex items-center flex-1">
-            {/* Added -ml-4 here to pull the logo tightly to the left border */}
-            <div className="md:hidden flex items-center -ml-9">
-              {/* Small Logo for Mobile Header */}
-              <img 
-                src={logo} 
-                alt="Nexoratel Logo" 
-                style={{ 
-                  height: '200px', 
-                  width: '200px',
-                  objectFit: 'contain', 
-                  mixBlendMode: theme === 'dark' ? 'screen' : 'multiply' 
-                }} 
-              />
+          <div className="flex items-center flex-1 min-w-0">
+            <div className="mobile-brand md:hidden">
+              <img src={logo} alt="Nexoratel" />
+              <span>Nexoratel</span>
+            </div>
+            <div className="hidden md:block min-w-0">
+              <p className="topnav-eyebrow">{isAdmin ? 'Administration' : 'Employee workspace'}</p>
+              <p className="topnav-title">{navLinks.find((link) => link.path === location.pathname)?.label || 'Workspace'}</p>
             </div>
           </div>
           
           {/* RIGHT HEADER AREA: Theme Toggle, Profile Avatar, and Hamburger Menu */}
           <div className="nav-actions flex items-center gap-3 sm:gap-4 ml-auto">
-            <button onClick={toggleTheme} className="icon-btn">
+            <button onClick={toggleTheme} className="icon-btn" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             
             <Link 
               to="/profile" 
-              style={{ 
-                width: '35px', 
-                height: '35px', 
-                borderRadius: '50%', 
-                background: 'linear-gradient(to right, var(--primary-gradient-start), var(--primary-gradient-end))', 
-                color: 'white', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: 'bold',
-                textDecoration: 'none',
-                flexShrink: 0
-              }}
+              className="profile-avatar"
+              aria-label="Open profile"
             >
               {user?.email?.[0]?.toUpperCase() || (user?.role === 'ADMIN' ? 'A' : 'U')}
             </Link>

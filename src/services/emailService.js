@@ -291,10 +291,30 @@ class EmailService {
     });
   }
 
+  async notifySLAThreshold(ticket, assignee, level, timing) {
+    const critical = level === 'critical';
+    const remainingHours = Math.max(0, Math.ceil(timing.remainingHours));
+    const percentage = Math.min(100, Math.round(timing.usagePercent));
+
+    return this.sendEmail({
+      to: assignee.email,
+      subject: `[${critical ? 'Urgent' : 'Reminder'}] ${percentage}% of task time used: ${ticket.trackingNumber}`,
+      html: this.buildEmailHTML('DEADLINE_WARNING', {
+        trackingNumber: ticket.trackingNumber,
+        ticketTitle: ticket.title,
+        ticketId: ticket.id,
+        deadline: new Date(timing.dueAt).toLocaleString(),
+        remainingHours,
+        progress: percentage,
+      }),
+      userId: assignee.id,
+      ticketId: ticket.id,
+      type: critical ? 'SLA_CRITICAL' : 'SLA_WARNING',
+    });
+  }
+
   async notifySLABreach(ticket, assignee) {
-    const elapsedHours = ticket.slaHours
-      ? Math.round((Date.now() - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60))
-      : 0;
+    const elapsedHours = Math.round((Date.now() - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60));
 
     const admins = await prisma.user.findMany({
       where: { role: 'ADMIN', accountStatus: 'ACTIVE', deletedAt: null },
@@ -305,7 +325,7 @@ class EmailService {
       trackingNumber: ticket.trackingNumber,
       ticketTitle: ticket.title,
       ticketId: ticket.id,
-      slaHours: ticket.slaHours,
+      slaHours: ticket.slaHours || ticket.estimatedHours || 24,
       elapsedHours,
       assigneeName: assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Unassigned',
     });

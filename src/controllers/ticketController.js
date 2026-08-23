@@ -360,6 +360,14 @@ class TicketController {
 
     if (assignedToId !== undefined && req.user.role === 'ADMIN') updateData.assignedToId = assignedToId;
     if (deadline !== undefined && req.user.role === 'ADMIN') updateData.deadline = deadline ? new Date(deadline) : null;
+    if (req.user.role === 'ADMIN' &&
+        (estimatedHours !== undefined || deadline !== undefined || assignedToId !== undefined)) {
+      updateData.slaWarningSent = false;
+      updateData.slaCriticalSent = false;
+      updateData.overdueNotified = false;
+      updateData.slaBreachedAt = null;
+      updateData.isOverdue = false;
+    }
     
     if (status !== undefined) {
       updateData.status = status;

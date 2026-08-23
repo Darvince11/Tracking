@@ -32,7 +32,7 @@ const Login = () => {
   };
 
   return (
-    <div style={{
+    <div className="login-page" style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
@@ -48,7 +48,7 @@ const Login = () => {
       overflow: 'hidden'
     }}>
       {/* Subtle ambient backdrop lighting */}
-      <div style={{
+      <div className="login-ambient" style={{
         position: 'absolute',
         width: '450px',
         height: '450px',
@@ -61,7 +61,7 @@ const Login = () => {
       }} />
 
       {/* Modern White Glass Card Container */}
-      <div style={{
+      <div className="login-card" style={{
         width: '100%',
         maxWidth: '440px',
         background: '#ffffff',
@@ -83,6 +83,7 @@ const Login = () => {
           }}>
             <img 
               src="/logo.png" 
+              className="login-logo"
               alt="Nexoratel Logo" 
               style={{ 
                 height: '150px', 
@@ -99,7 +100,7 @@ const Login = () => {
             letterSpacing: '-0.03em', 
             marginBottom: '8px' 
           }}>
-            Welcome Back
+            Welcome back
           </h1>
           <p style={{ 
             color: '#64748b', 
@@ -107,7 +108,7 @@ const Login = () => {
             fontWeight: '400', 
             letterSpacing: '0.01em' 
           }}>
-            Secure Employee & Administration Portal
+            Your secure operations workspace
           </p>
         </div>
 

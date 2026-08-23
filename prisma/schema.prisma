@@ -153,7 +153,7 @@ model Ticket {
   deletedAt       DateTime?
 
   // SLA Tracking 
-  slaHours        Int?
+  slaHours        Float?
   slaBreachedAt   DateTime?
   slaWarningSent  Boolean        @default(false)
   slaCriticalSent Boolean        @default(false)

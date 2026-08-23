@@ -1,125 +1,120 @@
 const emailService = require('./emailService');
 const prisma = require('../config/prisma');
+const { HOUR_MS, getSLATiming } = require('./slaTiming');
+
+const ACTIVE_STATUSES = ['COMPLETED', 'CANCELLED'];
+
+function successful(result) {
+  if (Array.isArray(result)) {
+    return result.some(item => item.status === 'fulfilled' && item.value?.success);
+  }
+  return result?.success === true;
+}
 
 class SLAService {
+  static async runNotificationChecks() {
+    const sla = await this.checkAllSLAs();
+    const deadlines = await this.checkDeadlines();
+    return { sla, deadlines };
+  }
+
   static async checkAllSLAs() {
     const startTime = Date.now();
-    console.log('🔍 Running SLA check...');
-
-    try {
-      const admins = await prisma.user.findMany({
-        where: { role: 'ADMIN' },
-        select: { email: true, firstName: true }
-      });
-
-      const activeTickets = await prisma.ticket.findMany({
-        where: {
-          deletedAt: null,
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+    const activeTickets = await prisma.ticket.findMany({
+      where: { deletedAt: null, status: { notIn: ACTIVE_STATUSES } },
+      include: {
+        assignee: {
+          select: { id: true, firstName: true, lastName: true, email: true, accountStatus: true, deletedAt: true },
         },
-        include: {
-          assignee: {
-            select: { id: true, firstName: true, lastName: true, email: true },
-          },
-        },
-      });
+      },
+    });
 
-      let warningsSent = 0;
-      let criticalSent = 0;
-      let breachesDetected = 0;
+    const counts = { warningsSent: 0, criticalSent: 0, breachesDetected: 0, deliveryFailures: 0 };
 
-      for (const ticket of activeTickets) {
-        const createdAt = new Date(ticket.createdAt).getTime();
-        const now = Date.now();
-        const elapsedHours = (now - createdAt) / (1000 * 60 * 60);
-        
-        const slaHours = ticket.slaHours || ticket.estimatedHours || 24;
-        const warningThreshold = slaHours * 0.75;
-        const criticalThreshold = slaHours * 0.90;
+    for (const ticket of activeTickets) {
+      const assignee = ticket.assignee?.accountStatus === 'ACTIVE' && !ticket.assignee.deletedAt
+        ? ticket.assignee
+        : null;
+      const timing = getSLATiming(ticket);
 
-        // NEW FIX: Capture the exact deadline timestamp
-        const explicitDeadline = ticket.slaDeadline || ticket.deadline;
-        const isTimeUp = explicitDeadline ? new Date(explicitDeadline).getTime() <= now : false;
-
-        // If hours are exceeded OR the exact clock ran out
-        if ((elapsedHours >= slaHours || isTimeUp) && !ticket.slaBreachedAt) {
-          console.log(`🚨 BREACH DETECTED: ${ticket.trackingNumber} - Deadline passed!`);
-          
+      try {
+        if (timing.breached && !ticket.slaBreachedAt) {
+          const result = await emailService.notifySLABreach(ticket, assignee);
+          if (!successful(result)) {
+            counts.deliveryFailures++;
+            continue;
+          }
           await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: { 
-              slaBreachedAt: new Date(),
-              isOverdue: true // Formally lock it as overdue in the DB
-            },
+            where: { id: ticket.id, slaBreachedAt: null },
+            data: { slaBreachedAt: new Date(), isOverdue: true },
           });
-
-          await emailService.notifySLABreach(ticket, ticket.assignee, admins);
-          breachesDetected++;
-        } else if (elapsedHours >= criticalThreshold && !ticket.slaCriticalSent && !ticket.slaBreachedAt) {
-          await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: { slaCriticalSent: true },
-          });
-          criticalSent++;
-        } else if (elapsedHours >= warningThreshold && !ticket.slaWarningSent && !ticket.slaBreachedAt) {
-          await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: { slaWarningSent: true },
-          });
-          warningsSent++;
+          counts.breachesDetected++;
+        } else if (timing.usagePercent >= 90 && !ticket.slaCriticalSent && !ticket.slaBreachedAt && assignee) {
+          const result = await emailService.notifySLAThreshold(ticket, assignee, 'critical', timing);
+          if (!successful(result)) {
+            counts.deliveryFailures++;
+            continue;
+          }
+          await prisma.ticket.update({ where: { id: ticket.id }, data: { slaCriticalSent: true } });
+          counts.criticalSent++;
+        } else if (timing.usagePercent >= 75 && !ticket.slaWarningSent && !ticket.slaBreachedAt && assignee) {
+          const result = await emailService.notifySLAThreshold(ticket, assignee, 'warning', timing);
+          if (!successful(result)) {
+            counts.deliveryFailures++;
+            continue;
+          }
+          await prisma.ticket.update({ where: { id: ticket.id }, data: { slaWarningSent: true } });
+          counts.warningsSent++;
         }
+      } catch (error) {
+        counts.deliveryFailures++;
+        console.error(`SLA notification failed for ${ticket.trackingNumber}:`, error);
       }
-
-      const duration = Date.now() - startTime;
-      console.log(`✅ SLA check complete (${duration}ms): ${warningsSent} warnings, ${criticalSent} critical, ${breachesDetected} breaches`);
-
-      return { checked: activeTickets.length, warningsSent, criticalSent, breachesDetected, duration };
-    } catch (error) {
-      console.error('SLA check failed:', error);
-      throw error;
     }
+
+    const summary = { checked: activeTickets.length, ...counts, duration: Date.now() - startTime };
+    console.log('SLA check complete:', summary);
+    return summary;
   }
 
   static async checkDeadlines() {
-    console.log('📅 Running deadline check...');
-
-    try {
-      const approachingTickets = await prisma.ticket.findMany({
-        where: {
-          deletedAt: null,
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-          deadline: {
-            gte: new Date(),
-            lte: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          },
-          overdueNotified: false,
+    const now = new Date();
+    const approachingTickets = await prisma.ticket.findMany({
+      where: {
+        deletedAt: null,
+        status: { notIn: ACTIVE_STATUSES },
+        deadline: { gt: now, lte: new Date(now.getTime() + 24 * HOUR_MS) },
+        overdueNotified: false,
+        assignedToId: { not: null },
+      },
+      include: {
+        assignee: {
+          select: { id: true, firstName: true, lastName: true, email: true, accountStatus: true, deletedAt: true },
         },
-        include: {
-          assignee: {
-            select: { id: true, firstName: true, lastName: true, email: true },
-          },
-        },
-      });
+      },
+    });
 
-      let remindersSent = 0;
-
-      for (const ticket of approachingTickets) {
-        if (ticket.assignee) {
-          await emailService.notifyDeadlineApproaching(ticket, ticket.assignee);
-          await prisma.ticket.update({
-            where: { id: ticket.id },
-            data: { overdueNotified: true },
-          });
-          remindersSent++;
+    let remindersSent = 0;
+    let deliveryFailures = 0;
+    for (const ticket of approachingTickets) {
+      if (!ticket.assignee || ticket.assignee.accountStatus !== 'ACTIVE' || ticket.assignee.deletedAt) continue;
+      try {
+        const result = await emailService.notifyDeadlineApproaching(ticket, ticket.assignee);
+        if (!successful(result)) {
+          deliveryFailures++;
+          continue;
         }
+        await prisma.ticket.update({ where: { id: ticket.id }, data: { overdueNotified: true } });
+        remindersSent++;
+      } catch (error) {
+        deliveryFailures++;
+        console.error(`Deadline reminder failed for ${ticket.trackingNumber}:`, error);
       }
-
-      console.log(`✅ Deadline check complete: ${remindersSent} reminders sent`);
-      return { approaching: approachingTickets.length, remindersSent };
-    } catch (error) {
-      console.error('Deadline check failed:', error);
-      throw error;
     }
+
+    const summary = { approaching: approachingTickets.length, remindersSent, deliveryFailures };
+    console.log('Deadline check complete:', summary);
+    return summary;
   }
 
   static async getSLAMetrics() {
@@ -127,64 +122,25 @@ class SLAService {
       prisma.ticket.count({
         where: {
           deletedAt: null,
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-          // Includes both formal SLA breaches AND overdue explicit deadlines
-          OR: [
-            { slaBreachedAt: { not: null } },
-            { isOverdue: true }
-          ]
+          status: { notIn: ACTIVE_STATUSES },
+          OR: [{ slaBreachedAt: { not: null } }, { isOverdue: true }],
         },
       }),
       prisma.ticket.findMany({
-        where: {
-          deletedAt: null,
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-          slaBreachedAt: null,
-          isOverdue: false // Exclude overdue tickets from the healthy "allActive" count
-        },
+        where: { deletedAt: null, status: { notIn: ACTIVE_STATUSES }, slaBreachedAt: null, isOverdue: false },
         select: {
-          id: true,
-          trackingNumber: true,
-          title: true,
-          slaHours: true,
-          estimatedHours: true,
-          createdAt: true,
-          deadline: true,
-          slaDeadline: true,
-          status: true,
-          priority: true,
-          assignee: {
-            select: { id: true, firstName: true, lastName: true },
-          },
+          id: true, trackingNumber: true, title: true, slaHours: true, estimatedHours: true,
+          createdAt: true, deadline: true, status: true, priority: true,
+          assignee: { select: { id: true, firstName: true, lastName: true } },
         },
       }),
     ]);
 
-    const now = Date.now();
     const atRisk = allActive
-      .filter(ticket => {
-        // Calculate risk based on hours
-        const slaHours = ticket.slaHours || ticket.estimatedHours || 24;
-        const elapsedHours = (now - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60);
-        const slaUsage = (elapsedHours / slaHours) * 100;
-        
-        return slaUsage >= 90;
-      })
-      .map(ticket => {
-        const slaHours = ticket.slaHours || ticket.estimatedHours || 24;
-        const elapsedHours = (now - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60);
-        return {
-          ...ticket,
-          slaUsagePercent: Math.round((elapsedHours / slaHours) * 100),
-        };
-      });
+      .map(ticket => ({ ...ticket, slaUsagePercent: Math.round(getSLATiming(ticket).usagePercent) }))
+      .filter(ticket => ticket.slaUsagePercent >= 90);
 
-    return {
-      breached,
-      atRisk,
-      compliant: allActive.length - atRisk.length,
-      total: breached + allActive.length,
-    };
+    return { breached, atRisk, compliant: allActive.length - atRisk.length, total: breached + allActive.length };
   }
 }
 

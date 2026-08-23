@@ -13,3 +13,16 @@ test('production environment rejects weak JWT secrets', () => {
 test('production environment accepts a complete configuration', () => {
   assert.doesNotThrow(() => validateEnvironment({ NODE_ENV: 'production', DATABASE_URL: 'postgres://db', FRONTEND_URL: 'https://app.example.com', JWT_SECRET: 'a'.repeat(32) }));
 });
+
+test('production cron requires SMTP delivery configuration', () => {
+  assert.throws(() => validateEnvironment({
+    NODE_ENV: 'production', DATABASE_URL: 'postgres://db', FRONTEND_URL: 'https://app.example.com',
+    JWT_SECRET: 'a'.repeat(32), RUN_CRON: 'true'
+  }), /SMTP_HOST/);
+
+  assert.doesNotThrow(() => validateEnvironment({
+    NODE_ENV: 'production', DATABASE_URL: 'postgres://db', FRONTEND_URL: 'https://app.example.com',
+    JWT_SECRET: 'a'.repeat(32), RUN_CRON: 'true', SMTP_HOST: 'smtp.example.com',
+    SMTP_USER: 'mailer', SMTP_PASS: 'secret', SMTP_FROM: 'alerts@example.com'
+  }));
+});
