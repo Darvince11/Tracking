@@ -1,0 +1,13 @@
+node_modules/
+.env
+dist/
+.DS_Store
+*.log
+.prisma/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+.neon/
+.openai/
+.vscode/
+.idea/

@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum Department {
+  WEB_DEVELOPMENT
+  CYBERSECURITY
+  CLOUD_COMPUTING
+  POS_SYSTEMS
+  NETWORKING
+  DATA_ANALYTICS
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  UNDER_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id                String          @id @default(uuid())
+  employeeId        String          @unique
+  firstName         String
+  lastName          String
+  email             String          @unique
+  password          String
+  role              Role            @default(EMPLOYEE)
+  department        Department
+  accountStatus     AccountStatus   @default(ACTIVE)
+  passwordChangedAt DateTime?
+  passwordHistory   String[]        @default([])
+  loginAttempts     Int             @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deactivatedAt     DateTime?
+  deletedAt         DateTime?
+
+  createdProjects   Project[]       @relation("ProjectCreator")
+  createdTickets    Ticket[]        @relation("TicketCreator")
+  assignedTickets   Ticket[]        @relation("TicketAssignee")
+  ticketLogs        TicketLog[]
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  notificationLogs  NotificationLog[]
+  
+  // NEW: Added Relationships for Activity Logs and Group Tasks
+  activityLogs      ActivityLog[]
+  groupTasks        GroupTask[]     @relation("GroupTaskMembers")
+
+  @@index([email, accountStatus])
+  @@index([department, role])
+  @@index([employeeId])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  refreshToken String   @unique
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  lastActivity DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([token])
+  @@map("sessions")
+}
+
+model Project {
+  id             String         @id @default(uuid())
+  trackingNumber String         @unique
+  title          String
+  description    String?        @db.Text
+  department     Department
+  estimatedHours Float
+  actualHours    Float          @default(0)
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  deadline       DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  isArchived     Boolean        @default(false)
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  creator   User       @relation("ProjectCreator", fields: [createdById], references: [id])
+  tickets   Ticket[]
+  auditLogs AuditLog[]
+
+  @@index([department, status, priority])
+  @@index([trackingNumber])
+  @@index([createdById])
+  @@index([deadline])
+  @@map("projects")
+}
+
+model Ticket {
+  id              String         @id @default(uuid())
+  trackingNumber  String         @unique
+  title           String
+  description     String?        @db.Text
+  department      Department
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(MEDIUM)
+  estimatedHours  Float
+  actualHours     Float          @default(0)
+  deadline        DateTime?
+  isBlocked       Boolean        @default(false)
+  blockReason     String?        @db.Text
+  blockedAt       DateTime?
+  blockedCount    Int            @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  projectId       String?
+  createdById     String
+  assignedToId    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  // SLA Tracking 
+  slaHours        Int?
+  slaBreachedAt   DateTime?
+  slaWarningSent  Boolean        @default(false)
+  slaCriticalSent Boolean        @default(false)
+  overdueNotified Boolean        @default(false)
+  isOverdue       Boolean        @default(false) // NEW: Explicit overdue flag for fast queries
+
+  project         Project?       @relation(fields: [projectId], references: [id])
+  creator         User           @relation("TicketCreator", fields: [createdById], references: [id])
+  assignee        User?          @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  logs            TicketLog[]
+  auditLogs       AuditLog[]
+  notificationLogs NotificationLog[]
+  
+  // NEW: Added Relationship for Activity Logs
+  activityLogs    ActivityLog[]
+
+  @@index([department, status, priority, isBlocked])
+  @@index([trackingNumber])
+  @@index([assignedToId, status])
+  @@index([projectId])
+  @@index([deadline])
+  @@index([createdAt])
+  @@index([slaBreachedAt])
+  @@map("tickets")
+}
+
+model TicketLog {
+  id            String       @id @default(uuid())
+  ticketId      String
+  userId        String
+  description   String       @db.Text
+  workHours     Float
+  statusBefore  TicketStatus
+  statusAfter   TicketStatus
+  isBlocker     Boolean      @default(false)
+  blockerReason String?      @db.Text
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("ticket_logs")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  userAgent String?
+  projectId String?
+  ticketId  String?
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
+  ticket  Ticket?  @relation(fields: [ticketId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model NotificationLog {
+  id        String    @id @default(uuid())
+  userId    String
+  ticketId  String?
+  type      String
+  channel   String
+  subject   String
+  content   String    @db.Text
+  status    String    @default("PENDING")
+  error     String?   @db.Text
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user   User    @relation(fields: [userId], references: [id])
+  ticket Ticket? @relation(fields: [ticketId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([type, status])
+  @@index([ticketId])
+  @@map("notification_logs")
+}
+
+model TrackingSequence {
+  id       String @id @default(uuid())
+  type     String
+  year     Int
+  sequence Int    @default(0)
+
+  @@unique([type, year])
+  @@map("tracking_sequences")
+}
+
+// ==========================================
+// NEW MODELS 
+// ==========================================
+
+model GroupTask {
+  id              String         @id @default(uuid())
+  title           String
+  description     String         @db.Text
+  status          TicketStatus   @default(OPEN)
+  
+  members         User[]         @relation("GroupTaskMembers")
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("group_tasks")
+}
+
+model ActivityLog {
+  id              String         @id @default(uuid())
+  content         String         @db.Text // Markdown supported
+  logDate         DateTime       @default(now())
+  
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  
+  ticketId        String?
+  ticket          Ticket?        @relation(fields: [ticketId], references: [id])
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([logDate])
+  @@map("activity_logs")
+}
