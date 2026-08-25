@@ -11,7 +11,7 @@ build, environment, domain, and deployment lifecycle.
 
 ## Backend web app
 
-Recommended domain: `api.nexoratel.site.je`
+Recommended domain: `api.nexorateltechnologies.com`
 
 - Repository: `Darvince11/Tracking`
 - Branch: `main`
@@ -30,8 +30,8 @@ DATABASE_URL=<SUPABASE_SESSION_POOLER_URL_PORT_5432>
 JWT_SECRET=<AT_LEAST_32_RANDOM_CHARACTERS>
 JWT_EXPIRES_IN=25m
 JWT_REFRESH_EXPIRES_IN=7d
-FRONTEND_URL=https://nexoratel.site.je
-CORS_ORIGINS=https://nexoratel.site.je
+FRONTEND_URL=https://tracking.nexorateltechnologies.com
+CORS_ORIGINS=https://tracking.nexorateltechnologies.com
 RUN_CRON=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -48,7 +48,7 @@ SLA scheduler is enabled.
 
 ## Frontend web app
 
-Recommended domain: `nexoratel.site.je`
+Recommended domain: `tracking.nexorateltechnologies.com`
 
 - Repository: `Darvince11/Tracking`
 - Branch: `main`
@@ -61,7 +61,7 @@ Recommended domain: `nexoratel.site.je`
 Build variable:
 
 ```env
-VITE_API_BASE_URL=https://api.nexoratel.site.je
+VITE_API_BASE_URL=https://api.nexorateltechnologies.com
 ```
 
 The included `.htaccess` provides SPA fallback routing when `dist` is served by
@@ -69,8 +69,8 @@ Apache/LiteSpeed. If Hostinger manages Vite routing itself, the file is harmless
 
 ## Verification
 
-1. Open `https://api.nexoratel.site.je/health`.
-2. Open `https://api.nexoratel.site.je/ready` and confirm HTTP 200.
-3. Open `https://nexoratel.site.je` and sign in.
+1. Open `https://api.nexorateltechnologies.com/health`.
+2. Open `https://api.nexorateltechnologies.com/ready` and confirm HTTP 200.
+3. Open `https://tracking.nexorateltechnologies.com` and sign in.
 4. Confirm the browser Network panel sends API calls to the API subdomain.
 5. Confirm backend logs show email initialization and one SLA scheduler.

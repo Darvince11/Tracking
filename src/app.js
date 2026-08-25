@@ -65,6 +65,15 @@ class Application {
   }
 
   initializeRoutes() {
+    this.app.get('/', (req, res) => {
+      res.json({
+        name: 'Nexoratel API',
+        status: 'online',
+        health: '/health',
+        readiness: '/ready',
+        timestamp: new Date().toISOString()
+      });
+    });
     this.app.get('/health', (req, res) => {
       res.json({
         status: 'healthy',
