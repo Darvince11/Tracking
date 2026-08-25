@@ -4,7 +4,6 @@ Nexoratel is a production-oriented IT operations and employee work-management pl
 
 ## Stack
 
-- React 18, Vite, Tailwind CSS, Recharts
 - Node.js 20+, Express 5, Prisma
 - PostgreSQL
 - Docker and Render Blueprint deployment
@@ -13,18 +12,15 @@ Nexoratel is a production-oriented IT operations and employee work-management pl
 
 ```text
 ./                    Express API and Prisma schema
-frontend/             React single-page application
-render.yaml            Render infrastructure blueprint
+render.yaml           Backend/database Render infrastructure blueprint
 ```
 
 ## Local setup
 
 1. Copy `.env.example` to `.env` and configure PostgreSQL and a strong JWT secret.
-2. Copy `frontend/.env.example` to `frontend/.env`.
-3. In the backend directory, run `npm ci`, `npx prisma migrate dev`, and `npm run dev`.
-4. In the frontend directory, run `npm ci` and `npm run dev`.
+2. Run `npm ci`, `npx prisma migrate dev`, and `npm run dev`.
 
-The API runs on port 3000 and the frontend on port 5173 by default.
+The API runs on port 3000 by default. The deployed frontend is maintained separately and must set its API base URL to this service.
 
 ## First administrator
 
@@ -45,21 +41,16 @@ Set `SEED_ADMIN_EMAIL` and a unique `SEED_ADMIN_PASSWORD` of at least 12 charact
 cd nexoratel
 npm test
 npm run check
-
-cd frontend
-npm run lint
-npm run build
 ```
 
 ## Deployment
 
-The included `render.yaml` provisions PostgreSQL, the API, and the static frontend. In Render:
+The included `render.yaml` provisions PostgreSQL and the API. In Render:
 
 1. Create a Blueprint from this repository.
 2. Set `FRONTEND_URL` and `CORS_ORIGINS` to the frontend URL.
-3. Set `VITE_API_BASE_URL` to the API URL.
-4. Configure SMTP variables if email delivery is required.
-5. Deploy and confirm `/health` and `/ready` on the API.
+3. Configure SMTP variables if email delivery is required.
+4. Deploy and confirm `/health` and `/ready` on the API.
 
 Database migrations run through `prisma migrate deploy` during the API build. Only one service instance should have `RUN_CRON=true`.
 

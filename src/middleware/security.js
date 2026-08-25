@@ -7,34 +7,38 @@ class SecurityMiddleware {
   static rateLimiter() {
     return rateLimit({
       windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-      max: process.env.NODE_ENV === 'development' ? 1000 : 100,
+      max: SecurityMiddleware.isLocalDevelopment() ? 1000 : 100,
       message: {
+        success: false,
         status: 'error',
         message: 'Too many requests, please try again later.',
-        errorCode: 'RATE_LIMIT_EXCEEDED'
+        errorCode: 'RATE_LIMIT_EXCEEDED',
+        errors: []
       },
       standardHeaders: true,
       legacyHeaders: false,
       keyGenerator: (req, res) => {
         return req.user?.id || ipKeyGenerator(req, res);
       },
-      skip: (req) => process.env.NODE_ENV === 'development'
+      skip: () => SecurityMiddleware.isLocalDevelopment()
     });
   }
 
   static authRateLimiter() {
     return rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: process.env.NODE_ENV === 'development' ? 100 : 5,
+      max: SecurityMiddleware.isLocalDevelopment() ? 100 : 5,
       skipSuccessfulRequests: true,
       message: {
+        success: false,
         status: 'error',
         message: 'Too many login attempts, please try again later.',
-        errorCode: 'AUTH_RATE_LIMIT'
+        errorCode: 'AUTH_RATE_LIMIT',
+        errors: []
       },
       standardHeaders: true,
       legacyHeaders: false,
-      skip: (req) => process.env.NODE_ENV === 'development'
+      skip: () => SecurityMiddleware.isLocalDevelopment()
     });
   }
 
@@ -49,6 +53,10 @@ class SecurityMiddleware {
       }
       next();
     };
+  }
+
+  static isLocalDevelopment() {
+    return process.env.NODE_ENV === 'development' && !/^https:\/\//i.test(process.env.FRONTEND_URL || '');
   }
 
   static parameterPollution() {

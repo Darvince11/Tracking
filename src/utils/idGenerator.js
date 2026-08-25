@@ -34,7 +34,6 @@ class IdGenerator {
       return `${prefix}-${year}-${sequenceNum}`;
     });
 
-    await prisma.$disconnect();
     return result;
   }
 

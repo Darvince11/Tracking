@@ -15,6 +15,7 @@ class ValidationMiddleware {
         }));
 
         return res.status(400).json({
+          success: false,
           status: 'error',
           message: 'Validation failed',
           errorCode: 'VALIDATION_ERROR',
@@ -43,6 +44,7 @@ class ValidationMiddleware {
         }));
 
         return res.status(400).json({
+          success: false,
           status: 'error',
           message: 'Invalid query parameters',
           errorCode: 'QUERY_VALIDATION_ERROR',

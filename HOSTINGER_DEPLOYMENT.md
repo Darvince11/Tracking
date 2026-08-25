@@ -1,13 +1,12 @@
 # Hostinger deployment
 
-This repository contains two deployable applications backed by the existing
-Supabase PostgreSQL database:
+This repository contains the backend application backed by the existing
+Supabase PostgreSQL database. The deployed frontend is maintained separately:
 
 - Backend: repository root (`/`), Express/Node.js
-- Frontend: `/frontend`, Vite/React
 
-Use separate Hostinger Web App deployments so each application has an isolated
-build, environment, domain, and deployment lifecycle.
+Deploy this backend as its own Hostinger Web App so its build, environment,
+domain, and deployment lifecycle remain isolated from the frontend.
 
 ## Backend web app
 
@@ -45,27 +44,6 @@ Use the Supabase Session pooler URL on port 5432 for this persistent Node.js
 service. The build command applies committed Prisma migrations before the new
 application version starts. Run exactly one backend instance while the internal
 SLA scheduler is enabled.
-
-## Frontend web app
-
-Recommended domain: `tracking.nexorateltechnologies.com`
-
-- Repository: `Darvince11/Tracking`
-- Branch: `main`
-- Root directory: `/frontend`
-- Node.js: 22
-- Install command: `npm ci`
-- Build command: `npm run build`
-- Output directory: `dist`
-
-Build variable:
-
-```env
-VITE_API_BASE_URL=https://api.nexorateltechnologies.com
-```
-
-The included `.htaccess` provides SPA fallback routing when `dist` is served by
-Apache/LiteSpeed. If Hostinger manages Vite routing itself, the file is harmless.
 
 ## Verification
 

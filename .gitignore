@@ -11,4 +11,3 @@ frontend/.env
 .openai/
 .vscode/
 .idea/
-.env.example

@@ -30,6 +30,18 @@ class TicketValidator {
     });
   }
 
+  static updateTicket() {
+    return Joi.object({
+      title: Joi.string().min(5).max(200).trim(),
+      description: Joi.string().max(5000).trim().allow('', null),
+      status: Joi.string().valid('OPEN', 'IN_PROGRESS', 'BLOCKED', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'),
+      priority: Joi.string().valid('LOW', 'MEDIUM', 'HIGH', 'URGENT'),
+      estimatedHours: Joi.number().min(0.5).max(1000).precision(1),
+      deadline: Joi.date().iso().greater('now').allow(null),
+      assignedToId: Joi.string().uuid().allow(null)
+    }).min(1);
+  }
+
   static queryTickets() {
     return Joi.object({
       status: Joi.string().valid('OPEN', 'IN_PROGRESS', 'BLOCKED', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'),

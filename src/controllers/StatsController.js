@@ -10,7 +10,7 @@ const StatsController = {
       const activeTasks = await prisma.ticket.count({
         where: {
           assignedToId: userId,
-          status: { not: 'COMPLETED' },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
           deletedAt: null
         }
       });
@@ -18,7 +18,7 @@ const StatsController = {
       const overdueTasks = await prisma.ticket.count({
         where: {
           assignedToId: userId,
-          status: { not: 'COMPLETED' },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
           deadline: { lt: now },
           deletedAt: null
         }
@@ -56,10 +56,10 @@ const StatsController = {
 
       const [totalActive, totalOverdue, totalCompleted] = await Promise.all([
         prisma.ticket.count({
-          where: { status: { not: 'COMPLETED' }, deletedAt: null }
+          where: { status: { notIn: ['COMPLETED', 'CANCELLED'] }, deletedAt: null }
         }),
         prisma.ticket.count({
-          where: { status: { not: 'COMPLETED' }, deadline: { lt: now }, deletedAt: null }
+          where: { status: { notIn: ['COMPLETED', 'CANCELLED'] }, deadline: { lt: now }, deletedAt: null }
         }),
         prisma.ticket.count({
           where: { status: 'COMPLETED', deletedAt: null }

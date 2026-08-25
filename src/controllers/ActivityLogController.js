@@ -11,6 +11,20 @@ class ActivityLogController {
       throw AppError.badRequest('Log content is required');
     }
 
+    if (ticketId) {
+      const ticket = await prisma.ticket.findFirst({
+        where: {
+          id: ticketId,
+          deletedAt: null,
+          ...(req.user.role === 'ADMIN' ? {} : {
+            OR: [{ assignedToId: req.user.id }, { createdById: req.user.id }]
+          })
+        },
+        select: { id: true }
+      });
+      if (!ticket) throw AppError.forbidden('You cannot attach an activity log to this ticket', 'TICKET_ACCESS_DENIED');
+    }
+
     const log = await prisma.activityLog.create({
       data: {
         content,

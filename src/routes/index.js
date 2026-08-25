@@ -24,6 +24,29 @@ const { TicketValidator } = require('../validators/ticketValidator');
 const { asyncHandler } = require('../utils/asyncHandler');
 const prisma = require('../config/prisma');
 
+const groupTaskCreateSchema = Joi.object({
+  title: Joi.string().trim().min(3).max(200).required(),
+  description: Joi.string().trim().min(1).max(5000).required(),
+  memberIds: Joi.array().items(Joi.string().uuid()).min(1).unique().required()
+});
+const groupTaskUpdateSchema = Joi.object({
+  title: Joi.string().trim().min(3).max(200),
+  description: Joi.string().trim().min(1).max(5000),
+  status: Joi.string().valid('OPEN', 'IN_PROGRESS', 'BLOCKED', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'),
+  memberIds: Joi.array().items(Joi.string().uuid()).min(1).unique()
+}).min(1);
+const userStatusSchema = Joi.object({ action: Joi.string().valid('activate', 'deactivate').required() });
+const auditLogQuerySchema = Joi.object({
+  userId: Joi.string().uuid(),
+  action: Joi.string().trim().max(100),
+  entity: Joi.string().trim().max(100),
+  dateFrom: Joi.date().iso(),
+  dateTo: Joi.date().iso().min(Joi.ref('dateFrom')),
+  search: Joi.string().trim().max(200),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(10)
+});
+
 // ================================================
 // AUTH ROUTES (Public)
 // ================================================
@@ -72,6 +95,7 @@ router.get('/tickets/team-tickets',
 
 // Added this so the frontend admin view connects seamlessly
 router.get('/tickets/directory',
+  AuthMiddleware.authorize('ADMIN'),
   ValidationMiddleware.validateQuery(TicketValidator.queryTickets()),
   TicketController.getTicketDirectory
 );
@@ -93,6 +117,7 @@ router.get('/tickets/:ticketId',
 );
 
 router.patch('/tickets/:ticketId',
+  ValidationMiddleware.validate(TicketValidator.updateTicket()),
   TicketController.updateTicket
 );
 
@@ -111,14 +136,6 @@ router.post('/tickets/:ticketId/logs',
 // ================================================
 
 router.get('/group-tasks', GroupTaskController.getGroupTasks);
-
-// ================================================
-// ACTIVITY LOGS & STATS (Employee)
-// ================================================
-
-router.post('/activity-logs', ActivityLogController.createLog);
-router.get('/activity-logs/me', ActivityLogController.getMyLogs);
-router.get('/stats/me', StatsController.getMyStats);
 
 // ================================================
 // EMPLOYEE DASHBOARD
@@ -184,6 +201,7 @@ router.get('/admin/users',
 );
 
 router.patch('/admin/users/:userId/status',
+  ValidationMiddleware.validate(userStatusSchema),
   UserController.toggleUserStatus
 );
 
@@ -212,6 +230,7 @@ router.post('/admin/tickets',
 
 // 2. DYNAMIC ADMIN TICKET ROUTES
 router.patch('/admin/tickets/:ticketId',
+  ValidationMiddleware.validate(TicketValidator.updateTicket()),
   TicketController.updateTicket
 );
 
@@ -224,8 +243,8 @@ router.delete('/admin/tickets/:ticketId',
 // ADMIN - GROUP TASKS (CRUD)
 // ================================================
 
-router.post('/admin/group-tasks', GroupTaskController.createGroupTask);
-router.patch('/admin/group-tasks/:id', GroupTaskController.updateGroupTask);
+router.post('/admin/group-tasks', ValidationMiddleware.validate(groupTaskCreateSchema), GroupTaskController.createGroupTask);
+router.patch('/admin/group-tasks/:id', ValidationMiddleware.validate(groupTaskUpdateSchema), GroupTaskController.updateGroupTask);
 router.delete('/admin/group-tasks/:id', GroupTaskController.deleteGroupTask);
 
 // ================================================
@@ -235,7 +254,10 @@ router.delete('/admin/group-tasks/:id', GroupTaskController.deleteGroupTask);
 router.get('/admin/activity-logs', ActivityLogController.getAdminLogs);
 router.get('/admin/stats/team', StatsController.getTeamStats);
 router.get('/admin/reports', AdminToolsController.generateReport);
-router.get('/admin/audit-logs', AdminToolsController.getAuditLogs);
+router.get('/admin/audit-logs',
+  ValidationMiddleware.validateQuery(auditLogQuerySchema),
+  AdminToolsController.getAuditLogs
+);
 
 // ================================================
 // ADMIN - EMPLOYEE TRACKING

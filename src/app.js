@@ -37,11 +37,13 @@ class Application {
       .filter(Boolean);
     const corsOptions = {
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) return callback(null, true);
+        const normalizedOrigin = origin?.trim().replace(/\/$/, '');
+        if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
         return callback(new Error('Origin is not allowed by CORS'));
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+      exposedHeaders: ['RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset'],
       credentials: true,
       optionsSuccessStatus: 204
     };
@@ -55,7 +57,8 @@ class Application {
     this.app.use(SecurityMiddleware.parameterPollution());
     this.app.use(compression());
     
-    if (process.env.NODE_ENV === 'development') {
+    const localDevelopment = process.env.NODE_ENV === 'development' && !/^https:\/\//i.test(process.env.FRONTEND_URL || '');
+    if (localDevelopment) {
       this.app.use(morgan('dev'));
     } else {
       this.app.use(morgan('combined'));
@@ -111,6 +114,16 @@ class Application {
     try {
       // Connect to database
       await prisma.$connect();
+      const [slaColumn] = await prisma.$queryRaw`
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tickets' AND column_name = 'slaHours'
+      `;
+      if (!slaColumn || slaColumn.data_type !== 'double precision') {
+        throw new Error(
+          `Database schema mismatch: tickets.slaHours must be DOUBLE PRECISION (found ${slaColumn?.data_type || 'missing'}). Run prisma migrate deploy.`
+        );
+      }
       console.log('✅ Database connected');
       
       // Connect to cache
@@ -122,7 +135,8 @@ class Application {
       
       // SCALABILITY FIX: Only run cron jobs on the main instance to prevent duplicate emails
       // Set RUN_CRON=true in your .env file for the primary server.
-      if (process.env.RUN_CRON === 'true' || process.env.NODE_ENV === 'development') {
+      const localDevelopment = process.env.NODE_ENV === 'development' && !/^https:\/\//i.test(process.env.FRONTEND_URL || '');
+      if (process.env.RUN_CRON === 'true' || localDevelopment) {
         SLACronJob.initialize();
         console.log('✅ SLA monitoring started');
       } else {

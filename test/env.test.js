@@ -26,3 +26,11 @@ test('production cron requires SMTP delivery configuration', () => {
     SMTP_USER: 'mailer', SMTP_PASS: 'secret', SMTP_FROM: 'alerts@example.com', DIRECT_URL: 'postgres://db'
   }));
 });
+
+test('production rejects insecure or path-based frontend origins', () => {
+  const base = {
+    NODE_ENV: 'production', DATABASE_URL: 'postgres://db', JWT_SECRET: 'a'.repeat(32)
+  };
+  assert.throws(() => validateEnvironment({ ...base, FRONTEND_URL: 'http://tracking.example.com' }), /HTTPS/);
+  assert.throws(() => validateEnvironment({ ...base, FRONTEND_URL: 'https://tracking.example.com/app' }), /origins only/);
+});

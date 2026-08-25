@@ -10,6 +10,22 @@ const calculateSLARemaining = (deadline, status) => {
   return new Date(deadline).getTime() - Date.now();
 };
 
+const VALID_STATUS_TRANSITIONS = {
+  OPEN: ['IN_PROGRESS', 'CANCELLED'],
+  IN_PROGRESS: ['BLOCKED', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'],
+  BLOCKED: ['IN_PROGRESS', 'CANCELLED'],
+  UNDER_REVIEW: ['IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: []
+};
+
+function assertStatusTransition(currentStatus, newStatus) {
+  if (newStatus === currentStatus) return;
+  if (!VALID_STATUS_TRANSITIONS[currentStatus]?.includes(newStatus)) {
+    throw AppError.badRequest(`Cannot transition from ${currentStatus} to ${newStatus}`, 'INVALID_STATUS_TRANSITION');
+  }
+}
+
 class TicketController {
   /**
    * Create a new ticket
@@ -211,6 +227,10 @@ class TicketController {
       throw AppError.notFound('Ticket not found');
     }
 
+    if (req.user.role !== 'ADMIN' && ticket.assignedToId !== req.user.id && ticket.createdById !== req.user.id) {
+      throw AppError.forbidden('You do not have access to this ticket', 'TICKET_ACCESS_DENIED');
+    }
+
     res.json({
       status: 'success',
       data: { 
@@ -243,18 +263,7 @@ class TicketController {
     }
 
     if (newStatus) {
-      const validTransitions = {
-        'OPEN': ['IN_PROGRESS'],
-        'IN_PROGRESS': ['BLOCKED', 'UNDER_REVIEW', 'COMPLETED'],
-        'BLOCKED': ['IN_PROGRESS'],
-        'UNDER_REVIEW': ['IN_PROGRESS', 'COMPLETED'],
-        'COMPLETED': [],
-        'CANCELLED': []
-      };
-
-      if (!validTransitions[ticket.status] || !validTransitions[ticket.status].includes(newStatus)) {
-        throw AppError.badRequest(`Cannot transition from ${ticket.status} to ${newStatus}`);
-      }
+      assertStatusTransition(ticket.status, newStatus);
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -370,11 +379,24 @@ class TicketController {
     }
     
     if (status !== undefined) {
+      assertStatusTransition(ticket.status, status);
+      if (status === 'BLOCKED') {
+        throw AppError.badRequest('Use the progress-log endpoint to block a ticket and provide a blocker reason', 'BLOCKER_REASON_REQUIRED');
+      }
       updateData.status = status;
       if (status === 'IN_PROGRESS' && ticket.status !== 'IN_PROGRESS' && !ticket.startedAt) {
         updateData.startedAt = new Date();
       }
-      if (status === 'COMPLETED') updateData.isOverdue = false;
+      if (status === 'IN_PROGRESS' && ticket.isBlocked) {
+        updateData.isBlocked = false;
+        updateData.blockReason = null;
+        updateData.blockedAt = null;
+      }
+      if (status === 'COMPLETED') {
+        updateData.completedAt = new Date();
+        updateData.isOverdue = false;
+      }
+      if (status === 'CANCELLED') updateData.isOverdue = false;
     }
 
     const updatedTicket = await prisma.ticket.update({
@@ -473,7 +495,7 @@ class TicketController {
       if (dateTo) where.createdAt.lte = new Date(dateTo);
     }
 
-    const [tickets, totalCount, statusStats] = await Promise.all([
+    const [tickets, totalCount, statusStats, blockedCount, overdueCount] = await Promise.all([
       prisma.ticket.findMany({
         where,
         select: {
@@ -488,7 +510,9 @@ class TicketController {
         orderBy: { [sortBy]: sortOrder }
       }),
       prisma.ticket.count({ where }),
-      prisma.ticket.groupBy({ by: ['status'], where, _count: true })
+      prisma.ticket.groupBy({ by: ['status'], where, _count: true }),
+      prisma.ticket.count({ where: { AND: [where, { isBlocked: true }] } }),
+      prisma.ticket.count({ where: { AND: [where, { isOverdue: true }] } })
     ]);
 
     res.json({
@@ -501,8 +525,8 @@ class TicketController {
             return acc;
           }, {}),
           total: totalCount,
-          blockedCount: tickets.filter(t => t.isBlocked).length,
-          overdueCount: tickets.filter(t => t.isOverdue).length
+          blockedCount,
+          overdueCount
         },
         pagination: {
           page: parseInt(page), limit: parseInt(limit),

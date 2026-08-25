@@ -38,17 +38,23 @@ class SLAService {
       const timing = getSLATiming(ticket);
 
       try {
-        if (timing.breached && !ticket.slaBreachedAt) {
+        if (timing.breached && (!ticket.slaBreachedAt || !ticket.overdueNotified)) {
+          if (!ticket.slaBreachedAt) {
+            await prisma.ticket.update({
+              where: { id: ticket.id },
+              data: { slaBreachedAt: new Date(), isOverdue: true },
+            });
+            counts.breachesDetected++;
+          }
           const result = await emailService.notifySLABreach(ticket, assignee);
           if (!successful(result)) {
             counts.deliveryFailures++;
             continue;
           }
           await prisma.ticket.update({
-            where: { id: ticket.id, slaBreachedAt: null },
-            data: { slaBreachedAt: new Date(), isOverdue: true },
+            where: { id: ticket.id },
+            data: { overdueNotified: true },
           });
-          counts.breachesDetected++;
         } else if (timing.usagePercent >= 90 && !ticket.slaCriticalSent && !ticket.slaBreachedAt && assignee) {
           const result = await emailService.notifySLAThreshold(ticket, assignee, 'critical', timing);
           if (!successful(result)) {

@@ -38,6 +38,18 @@ class ErrorHandler {
       message = 'Invalid data provided';
     }
 
+    if (err.message?.includes('22P03') || err.message?.includes('incorrect binary data format')) {
+      statusCode = 503;
+      errorCode = 'DATABASE_SCHEMA_MISMATCH';
+      message = 'The database schema is incompatible with this application version. Apply pending migrations and restart the API.';
+    }
+
+    if (err.message === 'Origin is not allowed by CORS') {
+      statusCode = 403;
+      errorCode = 'CORS_ORIGIN_DENIED';
+      message = 'Request origin is not allowed';
+    }
+
     if (err.name === 'JsonWebTokenError') {
       statusCode = 401;
       errorCode = 'INVALID_TOKEN';
@@ -50,12 +62,15 @@ class ErrorHandler {
       message = 'Token has expired';
     }
 
-    if (process.env.NODE_ENV === 'development') {
+    const localDevelopment = process.env.NODE_ENV === 'development' && !/^https:\/\//i.test(process.env.FRONTEND_URL || '');
+    if (localDevelopment) {
       return res.status(statusCode).json({
+        success: false,
         status: 'error',
         errorCode,
         message,
         details,
+        errors: details || [],
         stack: err.stack,
         timestamp: new Date().toISOString()
       });
@@ -74,9 +89,11 @@ class ErrorHandler {
     }
 
     res.status(statusCode).json({
+      success: false,
       status: 'error',
       errorCode,
       message,
+      errors: details || [],
       timestamp: new Date().toISOString()
     });
   }

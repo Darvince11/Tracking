@@ -1,11 +1,22 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 const AppError = require('../utils/AppError');
 const { asyncHandler } = require('../utils/asyncHandler');
 
-const ACCESS_TOKEN_DURATION = '25m';
-const REFRESH_SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const ACCESS_TOKEN_DURATION = process.env.JWT_EXPIRES_IN || '25m';
+const REFRESH_TOKEN_DURATION = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+
+function durationToMs(value, fallback) {
+  const match = /^(\d+)([smhd])$/.exec(value || '');
+  if (!match) return fallback;
+  const units = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+  return Number(match[1]) * units[match[2]];
+}
+
+const REFRESH_SESSION_DURATION_MS = durationToMs(REFRESH_TOKEN_DURATION, 7 * 24 * 60 * 60 * 1000);
+const secureCookies = process.env.NODE_ENV === 'production' || /^https:\/\//i.test(process.env.FRONTEND_URL || '');
 
 class AuthController {
   static login = asyncHandler(async (req, res) => {
@@ -75,9 +86,9 @@ class AuthController {
     );
 
     const refreshToken = jwt.sign(
-      { userId: user.id },
+      { userId: user.id, jti: crypto.randomUUID() },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+      { expiresIn: REFRESH_TOKEN_DURATION }
     );
 
     await prisma.session.create({
@@ -106,8 +117,8 @@ class AuthController {
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: secureCookies,
+      sameSite: secureCookies ? 'none' : 'lax',
       maxAge: REFRESH_SESSION_DURATION_MS,
       path: '/api/auth'
     });
@@ -151,8 +162,8 @@ class AuthController {
     });
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: secureCookies,
+      sameSite: secureCookies ? 'none' : 'lax',
       path: '/api/auth'
     });
 
@@ -211,13 +222,28 @@ class AuthController {
       { expiresIn: ACCESS_TOKEN_DURATION }
     );
 
+    const newRefreshToken = jwt.sign(
+      { userId: user.id, jti: crypto.randomUUID() },
+      process.env.JWT_SECRET,
+      { expiresIn: REFRESH_TOKEN_DURATION }
+    );
+
     await prisma.session.update({
       where: { id: session.id },
       data: {
         token: newToken,
+        refreshToken: newRefreshToken,
         lastActivity: new Date(),
         expiresAt: new Date(Date.now() + REFRESH_SESSION_DURATION_MS)
       }
+    });
+
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: secureCookies,
+      sameSite: secureCookies ? 'none' : 'lax',
+      maxAge: REFRESH_SESSION_DURATION_MS,
+      path: '/api/auth'
     });
 
     res.json({
