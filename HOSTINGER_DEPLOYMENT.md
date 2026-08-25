@@ -23,8 +23,10 @@ Recommended domain: `api.nexorateltechnologies.com`
 
 Hostinger's Express preset may hide the custom command fields. In that
 interface, choose npm as the package manager and `src/app.js` as the entry
-file. The `postinstall` script automatically generates Prisma Client and
-applies pending migrations during dependency installation.
+file. The `postinstall` script automatically generates Prisma Client during
+dependency installation. This existing production database must be baselined
+before enabling automatic `prisma migrate deploy`; until then, apply reviewed
+schema changes through the Supabase SQL Editor.
 
 Production variables:
 
@@ -46,9 +48,8 @@ SMTP_FROM=nexorateltechnologies@gmail.com
 ```
 
 Use the Supabase Session pooler URL on port 5432 for this persistent Node.js
-service. The build command applies committed Prisma migrations before the new
-application version starts. Run exactly one backend instance while the internal
-SLA scheduler is enabled.
+service. Run exactly one backend instance while the internal SLA scheduler is
+enabled.
 
 ## Verification
 
