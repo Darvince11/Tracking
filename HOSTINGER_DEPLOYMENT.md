@@ -17,9 +17,14 @@ Recommended domain: `api.nexorateltechnologies.com`
 - Root directory: `/`
 - Node.js: 22
 - Install command: `npm ci`
-- Build command: `npm run hostinger:build`
+- Build command: `npm run build`
 - Start command: `npm start`
 - Health check: `/ready`
+
+Hostinger's Express preset may hide the custom command fields. In that
+interface, choose npm as the package manager and `src/app.js` as the entry
+file. The `postinstall` script automatically generates Prisma Client and
+applies pending migrations during dependency installation.
 
 Production variables:
 

@@ -5,10 +5,12 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
+    "build": "prisma generate && prisma migrate deploy",
+    "postinstall": "prisma generate && prisma migrate deploy",
     "dev": "nodemon src/app.js",
     "test": "node --test test",
     "check": "node --check src/app.js && prisma validate",
-    "hostinger:build": "prisma generate && prisma migrate deploy",
+    "hostinger:build": "npm run build",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
