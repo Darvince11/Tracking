@@ -47,27 +47,50 @@ class EmailService {
 
   getTemplateStyles() {
     return `
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #1a1a2e; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f6fa; }
-      .container { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-      .header { background: #4a90e2; color: white; padding: 24px; text-align: center; }
-      .header h1 { margin: 0; font-size: 22px; }
-      .header.blocked { background: #e74c3c; }
-      .header.warning { background: #f39c12; }
-      .header.critical { background: #dc3545; }
-      .content { padding: 24px; }
-      .ticket-box { background: #f0f2f5; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #4a90e2; }
-      .button { display: inline-block; padding: 12px 28px; background: #4a90e2; color: white; text-decoration: none; border-radius: 8px; margin: 16px 0; font-weight: 600; }
-      .button.red { background: #e74c3c; }
-      .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e1e4e8; font-size: 12px; color: #8e8ea0; text-align: center; }
-      .alert { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 8px; margin: 12px 0; }
-      .alert.danger { background: #f8d7da; border-color: #dc3545; color: #721c24; }
-      .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f2f5; }
-      .info-label { color: #8e8ea0; font-weight: 500; }
-      .info-value { color: #1a1a2e; font-weight: 600; }
-      .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-      .badge-urgent { background: #e74c3c; color: white; }
-      .badge-high { background: #e67e22; color: white; }
-      .code { background: #f0f2f5; padding: 4px 10px; border-radius: 4px; font-family: monospace; font-size: 14px; }
+      html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; background: #f1f5f9; }
+      body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #172033; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+      table { border-collapse: collapse; border-spacing: 0; }
+      img { border: 0; display: block; }
+      a { color: #2563eb; }
+      .preheader { display: none !important; visibility: hidden; opacity: 0; color: transparent; height: 0; width: 0; overflow: hidden; mso-hide: all; }
+      .email-shell { width: 100%; background: #f1f5f9; padding: 36px 12px; }
+      .container { width: 100%; max-width: 620px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.10); }
+      .brand { padding: 22px 32px; background: #0f172a; color: #ffffff; font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+      .brand-mark { display: inline-block; width: 30px; height: 30px; line-height: 30px; margin-right: 10px; border-radius: 9px; background: #3b82f6; text-align: center; vertical-align: middle; color: #ffffff; font-size: 15px; }
+      .brand-name { vertical-align: middle; }
+      .header { padding: 36px 32px 30px; background: #eff6ff; color: #1e3a8a; border-top: 1px solid #dbeafe; }
+      .header h1 { margin: 0; font-size: 27px; line-height: 1.25; letter-spacing: -0.6px; }
+      .header.blocked, .header.critical { background: #fff1f2; color: #9f1239; border-top-color: #ffe4e6; }
+      .header.warning { background: #fffbeb; color: #92400e; border-top-color: #fef3c7; }
+      .content { padding: 30px 32px 34px; font-size: 15px; }
+      .content p { margin: 0 0 16px; }
+      .ticket-box { background: #f8fafc; padding: 20px; border-radius: 14px; margin: 22px 0; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; }
+      .ticket-box h2 { color: #0f172a; font-size: 19px; line-height: 1.35; }
+      .button { display: inline-block; padding: 13px 22px; background: #2563eb; color: #ffffff !important; text-decoration: none; border-radius: 10px; margin: 6px 0 0; font-weight: 700; font-size: 14px; box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22); }
+      .button.red { background: #e11d48; box-shadow: 0 6px 14px rgba(225, 29, 72, 0.20); }
+      .footer { padding: 24px 32px 28px; background: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; line-height: 1.6; color: #64748b; text-align: center; }
+      .footer p { margin: 3px 0; }
+      .footer strong { color: #334155; }
+      .alert { background: #fffbeb; border: 1px solid #fde68a; color: #854d0e; padding: 14px 16px; border-radius: 12px; margin: 0 0 20px; }
+      .alert.danger { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
+      .info-row { display: table; width: 100%; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+      .info-row:last-child { border-bottom: 0; padding-bottom: 0; }
+      .info-label, .info-value { display: table-cell; vertical-align: top; }
+      .info-label { width: 42%; color: #64748b; font-weight: 500; }
+      .info-value { color: #172033; font-weight: 700; text-align: right; word-break: break-word; }
+      .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
+      .badge-urgent { background: #ffe4e6; color: #be123c; }
+      .badge-high { background: #ffedd5; color: #c2410c; }
+      .code { display: inline-block; background: #e2e8f0; color: #0f172a; padding: 6px 10px; border-radius: 7px; font-family: Consolas, Monaco, monospace; font-size: 14px; letter-spacing: .3px; }
+      @media only screen and (max-width: 640px) {
+        .email-shell { padding: 0 !important; }
+        .container { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+        .brand, .header, .content, .footer { padding-left: 22px !important; padding-right: 22px !important; }
+        .header h1 { font-size: 23px !important; }
+        .info-label, .info-value { display: block !important; width: 100% !important; text-align: left !important; }
+        .info-value { padding-top: 2px !important; }
+        .button { display: block !important; text-align: center !important; }
+      }
     `;
   }
 
@@ -153,7 +176,42 @@ class EmailService {
       `,
     };
 
-    return `<!DOCTYPE html><html><head><style>${styles}</style></head><body><div class="container">${templates[templateName] || ''}<div class="footer"><p>${appName} IT Tracking Platform</p><p>This is an automated notification. Please do not reply to this email.</p></div></div></body></html>`;
+    const preheaders = {
+      TICKET_ASSIGNED: `A new ticket has been assigned to you in ${appName}.`,
+      TICKET_BLOCKED: 'A blocked ticket requires attention.',
+      DEADLINE_WARNING: 'A ticket deadline or SLA threshold is approaching.',
+      SLA_BREACH: 'Immediate action is required for an SLA breach.',
+      WELCOME: `Your ${appName} account is ready.`
+    };
+
+    return `<!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="x-apple-disable-message-reformatting">
+          <title>${appName} notification</title>
+          <style>${styles}</style>
+        </head>
+        <body>
+          <div class="preheader">${preheaders[templateName] || `${appName} notification`}</div>
+          <table role="presentation" class="email-shell" width="100%">
+            <tr>
+              <td align="center">
+                <div class="container">
+                  <div class="brand"><span class="brand-mark">N</span><span class="brand-name">${appName}</span></div>
+                  ${templates[templateName] || ''}
+                  <div class="footer">
+                    <p><strong>${appName} IT Operations</strong></p>
+                    <p>This automated notification was sent because of activity on your account.</p>
+                    <p>Please do not reply to this email.</p>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>`;
   }
 
   async sendEmail({ to, subject, html, userId, ticketId, type }) {
