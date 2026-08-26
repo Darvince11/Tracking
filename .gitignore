@@ -11,3 +11,5 @@ frontend/.env
 .openai/
 .vscode/
 .idea/
+.tmp-node/
+.tmp-node2/
