@@ -1,5 +1,15 @@
 const nodemailer = require('nodemailer');
+const path = require('path');
 const prisma = require('../config/prisma');
+
+const EMAIL_LOGO_CID = 'nexoratel-technologies-logo';
+const EMAIL_LOGO_PATH = path.join(
+  __dirname,
+  '..',
+  'assets',
+  'email',
+  'nexoratel-technologies-logo.png'
+);
 
 class EmailService {
   constructor() {
@@ -55,9 +65,8 @@ class EmailService {
       .preheader { display: none !important; visibility: hidden; opacity: 0; color: transparent; height: 0; width: 0; overflow: hidden; mso-hide: all; }
       .email-shell { width: 100%; background: #f1f5f9; padding: 36px 12px; }
       .container { width: 100%; max-width: 620px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.10); }
-      .brand { padding: 22px 32px; background: #0f172a; color: #ffffff; font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
-      .brand-mark { display: inline-block; width: 30px; height: 30px; line-height: 30px; margin-right: 10px; border-radius: 9px; background: #3b82f6; text-align: center; vertical-align: middle; color: #ffffff; font-size: 15px; }
-      .brand-name { vertical-align: middle; }
+      .brand { padding: 18px 32px; background: #ffffff; text-align: center; }
+      .brand-logo { display: block; width: 100%; max-width: 380px; height: auto; margin: 0 auto; }
       .header { padding: 36px 32px 30px; background: #eff6ff; color: #1e3a8a; border-top: 1px solid #dbeafe; }
       .header h1 { margin: 0; font-size: 27px; line-height: 1.25; letter-spacing: -0.6px; }
       .header.blocked, .header.critical { background: #fff1f2; color: #9f1239; border-top-color: #ffe4e6; }
@@ -199,7 +208,7 @@ class EmailService {
             <tr>
               <td align="center">
                 <div class="container">
-                  <div class="brand"><span class="brand-mark">N</span><span class="brand-name">${appName}</span></div>
+                  <div class="brand"><img class="brand-logo" src="cid:${EMAIL_LOGO_CID}" width="380" alt="Nexoratel Technologies"></div>
                   ${templates[templateName] || ''}
                   <div class="footer">
                     <p><strong>${appName} IT Operations</strong></p>
@@ -229,6 +238,13 @@ class EmailService {
           to,
           subject,
           html,
+          attachments: [
+            {
+              filename: 'nexoratel-technologies-logo.png',
+              path: EMAIL_LOGO_PATH,
+              cid: EMAIL_LOGO_CID,
+            },
+          ],
         };
 
         const info = await this.transporter.sendMail(mailOptions);
