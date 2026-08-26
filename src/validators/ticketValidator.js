@@ -38,7 +38,8 @@ class TicketValidator {
       priority: Joi.string().valid('LOW', 'MEDIUM', 'HIGH', 'URGENT'),
       estimatedHours: Joi.number().min(0.5).max(1000).precision(1),
       deadline: Joi.date().iso().greater('now').allow(null),
-      assignedToId: Joi.string().uuid().allow(null)
+      assignedToId: Joi.string().uuid().allow(null),
+      blockReason: Joi.string().trim().max(1000).allow('', null)
     }).min(1);
   }
 

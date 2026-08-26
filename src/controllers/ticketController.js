@@ -11,10 +11,10 @@ const calculateSLARemaining = (deadline, status) => {
 };
 
 const VALID_STATUS_TRANSITIONS = {
-  OPEN: ['IN_PROGRESS', 'CANCELLED'],
+  OPEN: ['IN_PROGRESS', 'BLOCKED', 'CANCELLED'],
   IN_PROGRESS: ['BLOCKED', 'UNDER_REVIEW', 'COMPLETED', 'CANCELLED'],
-  BLOCKED: ['IN_PROGRESS', 'CANCELLED'],
-  UNDER_REVIEW: ['IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+  BLOCKED: ['OPEN', 'IN_PROGRESS', 'CANCELLED'],
+  UNDER_REVIEW: ['IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: []
 };
@@ -24,6 +24,59 @@ function assertStatusTransition(currentStatus, newStatus) {
   if (!VALID_STATUS_TRANSITIONS[currentStatus]?.includes(newStatus)) {
     throw AppError.badRequest(`Cannot transition from ${currentStatus} to ${newStatus}`, 'INVALID_STATUS_TRANSITION');
   }
+}
+
+function buildTicketUpdateData(ticket, body, role) {
+  const { title, description, status, priority, estimatedHours, deadline, assignedToId, blockReason } = body;
+  const updateData = {};
+
+  if (title !== undefined && role === 'ADMIN') updateData.title = title;
+  if (description !== undefined) updateData.description = description;
+  if (priority !== undefined && role === 'ADMIN') updateData.priority = priority;
+
+  if (estimatedHours !== undefined && role === 'ADMIN') {
+    updateData.estimatedHours = estimatedHours;
+    updateData.slaHours = estimatedHours;
+  }
+
+  if (assignedToId !== undefined && role === 'ADMIN') updateData.assignedToId = assignedToId;
+  if (deadline !== undefined && role === 'ADMIN') updateData.deadline = deadline ? new Date(deadline) : null;
+
+  if (role === 'ADMIN' &&
+      (estimatedHours !== undefined || deadline !== undefined || assignedToId !== undefined)) {
+    updateData.slaWarningSent = false;
+    updateData.slaCriticalSent = false;
+    updateData.overdueNotified = false;
+    updateData.slaBreachedAt = null;
+    updateData.isOverdue = false;
+  }
+
+  if (status !== undefined) {
+    assertStatusTransition(ticket.status, status);
+    updateData.status = status;
+
+    if (status === 'BLOCKED') {
+      updateData.isBlocked = true;
+      updateData.blockedAt = ticket.status === 'BLOCKED' && ticket.blockedAt ? ticket.blockedAt : new Date();
+      if (ticket.status !== 'BLOCKED') updateData.blockedCount = { increment: 1 };
+      if (blockReason !== undefined) updateData.blockReason = blockReason || null;
+    } else if (ticket.isBlocked || ticket.status === 'BLOCKED') {
+      updateData.isBlocked = false;
+      updateData.blockReason = null;
+      updateData.blockedAt = null;
+    }
+
+    if (status === 'IN_PROGRESS' && ticket.status !== 'IN_PROGRESS' && !ticket.startedAt) {
+      updateData.startedAt = new Date();
+    }
+    if (status === 'COMPLETED') {
+      updateData.completedAt = new Date();
+      updateData.isOverdue = false;
+    }
+    if (status === 'CANCELLED') updateData.isOverdue = false;
+  }
+
+  return updateData;
 }
 
 class TicketController {
@@ -260,6 +313,9 @@ class TicketController {
       if (ticket.assignedToId !== req.user.id && ticket.createdById !== req.user.id) {
         throw AppError.forbidden('You are not assigned to this ticket', 'TICKET_NOT_ASSIGNED');
       }
+      if (newStatus !== undefined && newStatus !== null) {
+        throw AppError.forbidden('Only administrators can change ticket status', 'STATUS_UPDATE_ADMIN_ONLY');
+      }
     }
 
     if (newStatus) {
@@ -341,86 +397,48 @@ class TicketController {
    */
   static updateTicket = asyncHandler(async (req, res) => {
     const { ticketId } = req.params;
-    const { title, description, status, priority, estimatedHours, deadline, assignedToId } = req.body;
+    const updatedTicket = await prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findFirst({
+        where: { id: ticketId, deletedAt: null }
+      });
 
-    const ticket = await prisma.ticket.findFirst({
-      where: { id: ticketId, deletedAt: null }
+      if (!ticket) throw AppError.notFound('Ticket not found');
+      if (req.user.role !== 'ADMIN' && ticket.assignedToId !== req.user.id) {
+        throw AppError.forbidden('You can only update tickets assigned to you', 'TICKET_NOT_ASSIGNED');
+      }
+      if (req.user.role !== 'ADMIN' && req.body.status !== undefined) {
+        throw AppError.forbidden('Only administrators can change ticket status', 'STATUS_UPDATE_ADMIN_ONLY');
+      }
+
+      const updateData = buildTicketUpdateData(ticket, req.body, req.user.role);
+      const result = await tx.ticket.update({
+        where: { id: ticketId },
+        data: updateData,
+        include: {
+          assignee: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
+          project: { select: { id: true, trackingNumber: true, title: true } },
+          creator: { select: { id: true, firstName: true, lastName: true } }
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'UPDATE',
+          entity: 'TICKET',
+          entityId: ticketId,
+          oldValue: { status: ticket.status, assignedToId: ticket.assignedToId },
+          newValue: { status: result.status, assignedToId: result.assignedToId },
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      return result;
     });
-
-    if (!ticket) throw AppError.notFound('Ticket not found');
-
-    const isCreator = ticket.createdById === req.user.id;
-    const isAssignee = ticket.assignedToId === req.user.id;
-
-    if (req.user.role !== 'ADMIN' && !isCreator && !isAssignee) {
-      throw AppError.forbidden('You can only update tickets assigned to you');
-    }
-
-    const updateData = {};
-    if (title !== undefined && req.user.role === 'ADMIN') updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (priority !== undefined && req.user.role === 'ADMIN') updateData.priority = priority;
-    
-    if (estimatedHours !== undefined && req.user.role === 'ADMIN') {
-      const parsedHours = parseFloat(estimatedHours) || 0;
-      updateData.estimatedHours = parsedHours;
-      updateData.slaHours = parsedHours; // Sync slaHours
-    }
-
-    if (assignedToId !== undefined && req.user.role === 'ADMIN') updateData.assignedToId = assignedToId;
-    if (deadline !== undefined && req.user.role === 'ADMIN') updateData.deadline = deadline ? new Date(deadline) : null;
-    if (req.user.role === 'ADMIN' &&
-        (estimatedHours !== undefined || deadline !== undefined || assignedToId !== undefined)) {
-      updateData.slaWarningSent = false;
-      updateData.slaCriticalSent = false;
-      updateData.overdueNotified = false;
-      updateData.slaBreachedAt = null;
-      updateData.isOverdue = false;
-    }
-    
-    if (status !== undefined) {
-      assertStatusTransition(ticket.status, status);
-      if (status === 'BLOCKED') {
-        throw AppError.badRequest('Use the progress-log endpoint to block a ticket and provide a blocker reason', 'BLOCKER_REASON_REQUIRED');
-      }
-      updateData.status = status;
-      if (status === 'IN_PROGRESS' && ticket.status !== 'IN_PROGRESS' && !ticket.startedAt) {
-        updateData.startedAt = new Date();
-      }
-      if (status === 'IN_PROGRESS' && ticket.isBlocked) {
-        updateData.isBlocked = false;
-        updateData.blockReason = null;
-        updateData.blockedAt = null;
-      }
-      if (status === 'COMPLETED') {
-        updateData.completedAt = new Date();
-        updateData.isOverdue = false;
-      }
-      if (status === 'CANCELLED') updateData.isOverdue = false;
-    }
-
-    const updatedTicket = await prisma.ticket.update({
-      where: { id: ticketId },
-      data: updateData,
-      include: {
-        assignee: { select: { id: true, firstName: true, lastName: true, employeeId: true } },
-        project: { select: { id: true, trackingNumber: true, title: true } },
-        creator: { select: { id: true, firstName: true, lastName: true } }
-      }
-    });
-
-    prisma.auditLog.create({
-      data: {
-        userId: req.user.id,
-        action: 'UPDATE',
-        entity: 'TICKET',
-        entityId: ticketId,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
-      }
-    }).catch(e => console.error("Update audit failed:", e));
 
     res.json({
+      success: true,
       status: 'success',
       message: 'Ticket updated successfully',
       data: { ticket: { ...updatedTicket, slaRemainingMs: calculateSLARemaining(updatedTicket.deadline, updatedTicket.status) } }
@@ -625,4 +643,9 @@ function formatDuration(hours) {
   return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
-module.exports = { TicketController };
+module.exports = {
+  TicketController,
+  VALID_STATUS_TRANSITIONS,
+  assertStatusTransition,
+  buildTicketUpdateData
+};
